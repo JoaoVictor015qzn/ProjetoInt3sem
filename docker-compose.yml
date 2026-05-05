@@ -40,15 +40,31 @@ services:
     env_file: .env
     ports:
       - "8000:8000"
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
     networks:
       - app-network
 
+  # ── Mobile Web ─────────────────────────────────────────────────────
+  mobile:
+    build:
+      context: ./mobile
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - app-network
+
 volumes:
   pgdata:
   pgadmin_data:
+  uploads_data:
 
 networks:
   app-network:

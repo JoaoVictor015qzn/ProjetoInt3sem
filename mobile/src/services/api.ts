@@ -1,9 +1,15 @@
+import { Platform } from "react-native";
 import Constants from "expo-constants";
 
-// Expo Go no celular físico: usa o debuggerHost (IP:porta do bundler)
-// para descobrir o IP da máquina na rede local automaticamente.
+// ── URL da API ──────────────────────────────────────────────────────
+
 function getApiUrl(): string {
-  const debuggerHost = Constants.expoConfig?.hostUri ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
+  if (Platform.OS === "web") {
+    return "http://localhost:8000";
+  }
+  const debuggerHost =
+    Constants.expoConfig?.hostUri ??
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
   if (debuggerHost) {
     const ip = debuggerHost.split(":")[0];
     return `http://${ip}:8000`;
@@ -12,6 +18,9 @@ function getApiUrl(): string {
 }
 
 const BASE_URL = getApiUrl();
+export { BASE_URL };
+
+// ── Types ───────────────────────────────────────────────────────────
 
 export interface LoginResponse {
   access_token: string;
@@ -19,26 +28,58 @@ export interface LoginResponse {
 }
 
 export interface UserInfo {
-  id: number;
+  id: string;
   nome: string;
   email: string;
   cpf: string;
   cargo: string;
   rfid_uid: string | null;
   role: string;
+  foto_url: string | null;
   ativo: boolean;
   criado_em: string;
 }
 
-// Base64 decode que funciona no React Native (não tem atob)
+export interface SubestacaoInfo {
+  id: string;
+  nome: string;
+  localizacao: string | null;
+  ativa: boolean;
+}
+
+export interface PermissaoInfo {
+  id: string;
+  colaborador_id: string;
+  subestacao_id: string;
+  validade_inicio: string | null;
+  validade_fim: string | null;
+  ativa: boolean;
+}
+
+export interface LogAcessoInfo {
+  id: string;
+  colaborador_id: string | null;
+  subestacao_id: string;
+  rfid_uid: string;
+  tipo: string;
+  resultado: string;
+  data_hora: string;
+}
+
+export interface ValidarAcessoResponse {
+  acao: string;
+  colaborador: string | null;
+  motivo: string | null;
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
 function decodeBase64(str: string): string {
   const chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
   let output = "";
-  // Pad string
   str = str.replace(/-/g, "+").replace(/_/g, "/");
   while (str.length % 4) str += "=";
-
   for (let i = 0; i < str.length; i += 4) {
     const a = chars.indexOf(str[i]);
     const b = chars.indexOf(str[i + 1]);
@@ -52,40 +93,193 @@ function decodeBase64(str: string): string {
   return output;
 }
 
-export async function login(
-  email: string,
-  senha: string
-): Promise<LoginResponse> {
-  const response = await fetch(`${BASE_URL}/auth/login`, {
+function authHeaders(token: string) {
+  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `Erro ${response.status}`);
+  }
+  return response.json();
+}
+
+// ── Auth ────────────────────────────────────────────────────────────
+
+export async function login(email: string, senha: string): Promise<LoginResponse> {
+  const res = await fetch(`${BASE_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, senha }),
   });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || "Falha na autenticação");
-  }
-
-  return response.json();
+  return handleResponse<LoginResponse>(res);
 }
 
 export async function getMe(token: string): Promise<UserInfo> {
-  // Decodifica o JWT pra pegar o user_id (payload é a parte do meio)
   const payload = JSON.parse(decodeBase64(token.split(".")[1]));
-  const userId = payload.user_id;
-
-  const response = await fetch(`${BASE_URL}/users/${userId}`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const res = await fetch(`${BASE_URL}/users/${payload.user_id}`, {
+    headers: authHeaders(token),
   });
-
-  if (!response.ok) {
-    throw new Error("Falha ao buscar dados do usuário");
-  }
-
-  return response.json();
+  return handleResponse<UserInfo>(res);
 }
 
-export function getBaseUrl(): string {
-  return BASE_URL;
+// ── Users ───────────────────────────────────────────────────────────
+
+export async function getUsers(token: string): Promise<UserInfo[]> {
+  const res = await fetch(`${BASE_URL}/users/`, { headers: authHeaders(token) });
+  return handleResponse<UserInfo[]>(res);
+}
+
+export async function createUser(
+  token: string,
+  data: { nome: string; email: string; cpf: string; cargo: string; rfid_uid?: string; role: string; senha: string }
+): Promise<UserInfo> {
+  const res = await fetch(`${BASE_URL}/users/`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse<UserInfo>(res);
+}
+
+export async function updateUser(
+  token: string,
+  userId: string,
+  data: Record<string, any>
+): Promise<UserInfo> {
+  const res = await fetch(`${BASE_URL}/users/${userId}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse<UserInfo>(res);
+}
+
+export async function deleteUser(token: string, userId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/users/${userId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || "Erro ao desativar");
+  }
+}
+
+// ── Subestações ─────────────────────────────────────────────────────
+
+export async function getSubestacoes(token: string): Promise<SubestacaoInfo[]> {
+  const res = await fetch(`${BASE_URL}/subestacoes/`, { headers: authHeaders(token) });
+  return handleResponse<SubestacaoInfo[]>(res);
+}
+
+export async function createSubestacao(
+  token: string,
+  data: { nome: string; localizacao?: string }
+): Promise<SubestacaoInfo> {
+  const res = await fetch(`${BASE_URL}/subestacoes/`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse<SubestacaoInfo>(res);
+}
+
+// ── Permissões ──────────────────────────────────────────────────────
+
+export async function getPermissoes(token: string): Promise<PermissaoInfo[]> {
+  const res = await fetch(`${BASE_URL}/permissoes/`, { headers: authHeaders(token) });
+  return handleResponse<PermissaoInfo[]>(res);
+}
+
+export async function createPermissao(
+  token: string,
+  data: { colaborador_id: string; subestacao_id: string }
+): Promise<PermissaoInfo> {
+  const res = await fetch(`${BASE_URL}/permissoes/`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse<PermissaoInfo>(res);
+}
+
+export async function deletePermissao(token: string, permId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/permissoes/${permId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("Erro ao revogar permissão");
+}
+
+// ── Logs ────────────────────────────────────────────────────────────
+
+export async function getLogs(
+  token: string,
+  params?: { resultado?: string; limit?: number }
+): Promise<LogAcessoInfo[]> {
+  const query = new URLSearchParams();
+  if (params?.resultado) query.set("resultado", params.resultado);
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  const res = await fetch(`${BASE_URL}/logs${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(token),
+  });
+  return handleResponse<LogAcessoInfo[]>(res);
+}
+
+// ── Validar Acesso ──────────────────────────────────────────────────
+
+export async function validarAcesso(
+  data: { rfid_uid: string; subestacao_id: string; tipo?: string }
+): Promise<ValidarAcessoResponse> {
+  const res = await fetch(`${BASE_URL}/acesso/validar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tipo: "ENTRADA", ...data }),
+  });
+  return handleResponse<ValidarAcessoResponse>(res);
+}
+
+// ── Upload Foto ─────────────────────────────────────────────────────
+
+export async function uploadFoto(
+  token: string,
+  userId: string,
+  imageUri: string
+): Promise<UserInfo> {
+  const formData = new FormData();
+
+  if (Platform.OS === "web") {
+    // Na web, o URI é um blob URL ou data URI
+    const response = await fetch(imageUri);
+    const blob = await response.blob();
+    formData.append("file", blob, "foto.jpg");
+  } else {
+    // No mobile, usar o formato { uri, name, type }
+    formData.append("file", {
+      uri: imageUri,
+      name: "foto.jpg",
+      type: "image/jpeg",
+    } as any);
+  }
+
+  const res = await fetch(`${BASE_URL}/users/${userId}/foto`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  return handleResponse<UserInfo>(res);
+}
+
+export async function deleteFoto(
+  token: string,
+  userId: string
+): Promise<UserInfo> {
+  const res = await fetch(`${BASE_URL}/users/${userId}/foto`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  return handleResponse<UserInfo>(res);
 }

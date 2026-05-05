@@ -52,6 +52,7 @@ class UserResponse(BaseModel):
     cargo: str
     rfid_uid: Optional[str] = None
     role: UserRole
+    foto_url: Optional[str] = None
     ativo: bool
     criado_em: datetime
 

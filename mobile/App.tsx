@@ -1,19 +1,17 @@
-import React, { useState } from "react";
+import React from "react";
+import { AuthProvider, useAuth } from "./src/contexts/AuthContext";
 import LoginScreen from "./src/screens/LoginScreen";
-import DashboardScreen from "./src/screens/DashboardScreen";
-import { UserInfo } from "./src/services/api";
+import AppNavigator from "./src/navigation/AppNavigator";
+
+function Main() {
+  const { token } = useAuth();
+  return token ? <AppNavigator /> : <LoginScreen />;
+}
 
 export default function App() {
-  const [loggedUser, setLoggedUser] = useState<UserInfo | null>(null);
-
-  if (loggedUser) {
-    return (
-      <DashboardScreen
-        user={loggedUser}
-        onLogout={() => setLoggedUser(null)}
-      />
-    );
-  }
-
-  return <LoginScreen onLoginSuccess={setLoggedUser} />;
+  return (
+    <AuthProvider>
+      <Main />
+    </AuthProvider>
+  );
 }
