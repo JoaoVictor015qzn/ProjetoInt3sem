@@ -1,11 +1,13 @@
+import os
 from datetime import datetime, timedelta
+from uuid import UUID
 
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-SECRET_KEY = "supersecretkey"
+SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -39,7 +41,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str | None = payload.get("sub")
-        user_id: int | None = payload.get("user_id")
+        user_id: str | None = payload.get("user_id")
         role: str | None = payload.get("role")
         if email is None:
             raise credentials_exception

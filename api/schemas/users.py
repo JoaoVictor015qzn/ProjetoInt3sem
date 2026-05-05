@@ -1,6 +1,7 @@
 from enum import Enum
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -44,7 +45,7 @@ class UserUpdate(BaseModel):
 # ── Response ──────────────────────────────────────────────────────────
 
 class UserResponse(BaseModel):
-    id: int
+    id: UUID
     nome: str
     email: EmailStr
     cpf: str
