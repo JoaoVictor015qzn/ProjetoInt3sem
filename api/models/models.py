@@ -32,6 +32,7 @@ class Colaborador(Base):
         default="operador",
     )
     hashed_password = Column(String(255), nullable=False)
+    foto_url = Column(String(500), nullable=True)
     ativo = Column(Boolean, default=True, nullable=False)
     criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)
 

@@ -1,5 +1,8 @@
+import os
+
 from fastapi import FastAPI, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from core.database import engine, Base, get_db
@@ -9,6 +12,10 @@ from routes import user, auth, subestacao, permissao, log_acesso
 
 # ── Cria todas as tabelas no banco ───────────────────────────────────
 Base.metadata.create_all(bind=engine)
+
+# ── Cria diretório de uploads ────────────────────────────────────────
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI(
     title="Sistema de Controle de Acesso — Subestação",
@@ -22,6 +29,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Servir arquivos de upload (fotos) ────────────────────────────────
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # ── Routers ──────────────────────────────────────────────────────────
 app.include_router(user.router, prefix="/users", tags=["Users"])

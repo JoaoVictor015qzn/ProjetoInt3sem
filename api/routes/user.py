@@ -1,6 +1,8 @@
+import os
+import uuid as uuid_mod
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -11,6 +13,9 @@ from core.database import get_db
 from models.models import Colaborador
 
 router = APIRouter()
+
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 # ── CREATE ───────────────────────────────────────────────────────────
@@ -113,6 +118,85 @@ def update_user(
 
     db.commit()
     db.refresh(user)
+    return user
+
+
+# ── UPLOAD FOTO ──────────────────────────────────────────────────────
+
+@router.post("/{user_id}/foto", response_model=UserResponse)
+async def upload_foto(
+    user_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role("admin", "gestor")),
+):
+    """Faz upload da foto do colaborador. Apenas admin/gestor pode."""
+    user = db.query(Colaborador).filter(
+        Colaborador.id == user_id, Colaborador.ativo == True
+    ).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado",
+        )
+
+    # Validar tipo do arquivo
+    allowed = {"image/jpeg", "image/png", "image/webp"}
+    if file.content_type not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tipo de arquivo não suportado: {file.content_type}. Use JPEG, PNG ou WebP.",
+        )
+
+    # Gerar nome único
+    ext = file.filename.split(".")[-1] if file.filename else "jpg"
+    filename = f"{user_id}_{uuid_mod.uuid4().hex[:8]}.{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+
+    # Salvar arquivo
+    contents = await file.read()
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    # Apagar foto antiga se existir
+    if user.foto_url:
+        old_path = os.path.join(UPLOAD_DIR, os.path.basename(user.foto_url))
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    # Atualizar banco
+    user.foto_url = f"/uploads/{filename}"
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+# ── DELETE FOTO ──────────────────────────────────────────────────────
+
+@router.delete("/{user_id}/foto", response_model=UserResponse)
+def delete_foto(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role("admin", "gestor")),
+):
+    """Remove a foto do colaborador."""
+    user = db.query(Colaborador).filter(
+        Colaborador.id == user_id, Colaborador.ativo == True
+    ).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado",
+        )
+
+    if user.foto_url:
+        old_path = os.path.join(UPLOAD_DIR, os.path.basename(user.foto_url))
+        if os.path.exists(old_path):
+            os.remove(old_path)
+        user.foto_url = None
+        db.commit()
+        db.refresh(user)
+
     return user
 
 
