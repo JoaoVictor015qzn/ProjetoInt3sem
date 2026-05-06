@@ -31,6 +31,16 @@ def create_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email já cadastrado",
         )
+    if db.query(Colaborador).filter(Colaborador.cpf == user.cpf).first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CPF já cadastrado",
+        )
+    if user.rfid_uid and db.query(Colaborador).filter(Colaborador.rfid_uid == user.rfid_uid).first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="RFID UID já cadastrado",
+        )
 
     new_user = Colaborador(
         nome=user.nome,
@@ -53,7 +63,7 @@ def create_user(
 @router.get("/", response_model=List[UserResponse])
 def list_users(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_role("admin", "gestor", "supervisor")),
+    current_user: dict = Depends(require_role("admin", "gestor", "supervisor", "operador")),
 ):
     return db.query(Colaborador).filter(Colaborador.ativo == True).all()
 
@@ -105,13 +115,18 @@ def update_user(
     if "role" in update_data and update_data["role"] is not None:
         update_data["role"] = update_data["role"].value
 
-    # Verificar email duplicado
+    # Verificar duplicatas
     if "email" in update_data and update_data["email"] != user.email:
         if db.query(Colaborador).filter(Colaborador.email == update_data["email"]).first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email já cadastrado",
-            )
+            raise HTTPException(status_code=400, detail="Email já em uso")
+    
+    if "cpf" in update_data and update_data["cpf"] != user.cpf:
+        if db.query(Colaborador).filter(Colaborador.cpf == update_data["cpf"]).first():
+            raise HTTPException(status_code=400, detail="CPF já em uso")
+            
+    if "rfid_uid" in update_data and update_data["rfid_uid"] != user.rfid_uid and update_data["rfid_uid"] is not None:
+        if db.query(Colaborador).filter(Colaborador.rfid_uid == update_data["rfid_uid"]).first():
+            raise HTTPException(status_code=400, detail="RFID UID já em uso")
 
     for key, value in update_data.items():
         setattr(user, key, value)

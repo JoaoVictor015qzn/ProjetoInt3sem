@@ -100,9 +100,27 @@ def list_logs(
     data_fim: Optional[datetime] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_role("admin", "gestor", "supervisor")),
+    current_user: dict = Depends(require_role("admin", "gestor", "supervisor", "operador")),
 ):
-    query = db.query(LogAcesso)
+    query = db.query(LogAcesso).outerjoin(Colaborador, LogAcesso.colaborador_id == Colaborador.id)
+
+    # Filtros de Hierarquia
+    user_role = current_user.get("role", "operador")
+    user_id = current_user.get("id")
+
+    if user_role == "operador":
+        query = query.filter(LogAcesso.colaborador_id == user_id)
+    elif user_role == "supervisor":
+        query = query.filter(
+            (LogAcesso.colaborador_id == user_id) |
+            (Colaborador.role == "operador")
+        )
+    elif user_role == "gestor":
+        query = query.filter(
+            (LogAcesso.colaborador_id == user_id) |
+            (Colaborador.role.in_(["operador", "supervisor"]))
+        )
+    # admin visualiza tudo
 
     if subestacao_id:
         query = query.filter(LogAcesso.subestacao_id == subestacao_id)

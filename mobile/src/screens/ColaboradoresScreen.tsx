@@ -16,9 +16,11 @@ interface Props {
 }
 
 export default function ColaboradoresScreen({ navigation }: Props) {
-  const { token } = useAuth();
+  const { token, user: currentUser } = useAuth();
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(500, width - 32);
+
+  const canEdit = currentUser?.role === "admin" || currentUser?.role === "gestor";
 
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,9 +81,9 @@ export default function ColaboradoresScreen({ navigation }: Props) {
   const renderItem = ({ item }: { item: UserInfo }) => (
     <TouchableOpacity
       style={styles.card}
-      activeOpacity={0.7}
-      onPress={() => navigation.navigate("CreateColaborador", { user: item })}
-      onLongPress={() => handleDelete(item)}
+      activeOpacity={canEdit ? 0.7 : 1}
+      onPress={() => canEdit && navigation.navigate("CreateColaborador", { user: item })}
+      onLongPress={() => canEdit && handleDelete(item)}
     >
       {item.foto_url ? (
         <Image source={{ uri: `${BASE_URL}${item.foto_url}` }} style={styles.avatarImg} />
@@ -130,13 +132,15 @@ export default function ColaboradoresScreen({ navigation }: Props) {
           <View style={styles.empty}><Text style={styles.emptyText}>Nenhum colaborador</Text></View>
         }
       />
-      <TouchableOpacity
-        style={styles.fab}
-        activeOpacity={0.8}
-        onPress={() => navigation.navigate("CreateColaborador")}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      {canEdit && (
+        <TouchableOpacity
+          style={styles.fab}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate("CreateColaborador")}
+        >
+          <Text style={styles.fabText}>+</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

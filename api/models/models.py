@@ -18,7 +18,7 @@ from core.database import Base
 # ── Colaborador ──────────────────────────────────────────────────────
 
 class Colaborador(Base):
-    __tablename__ = "colaboradores"
+    __tablename__ = "colaborador"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nome = Column(String(120), nullable=False)
@@ -44,7 +44,7 @@ class Colaborador(Base):
 # ── Subestação ───────────────────────────────────────────────────────
 
 class Subestacao(Base):
-    __tablename__ = "subestacoes"
+    __tablename__ = "subestacao"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nome = Column(String(120), nullable=False)
@@ -59,17 +59,17 @@ class Subestacao(Base):
 # ── Permissão ────────────────────────────────────────────────────────
 
 class Permissao(Base):
-    __tablename__ = "permissoes"
+    __tablename__ = "permissao"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     colaborador_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("colaboradores.id"),
+        ForeignKey("colaborador.id"),
         nullable=False,
     )
     subestacao_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("subestacoes.id"),
+        ForeignKey("subestacao.id"),
         nullable=False,
     )
     validade_inicio = Column(DateTime, nullable=True)
@@ -84,17 +84,17 @@ class Permissao(Base):
 # ── Log de Acesso ────────────────────────────────────────────────────
 
 class LogAcesso(Base):
-    __tablename__ = "logs_acesso"
+    __tablename__ = "log_acesso"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     colaborador_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("colaboradores.id"),
+        ForeignKey("colaborador.id"),
         nullable=True,
     )
     subestacao_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("subestacoes.id"),
+        ForeignKey("subestacao.id"),
         nullable=False,
     )
     rfid_uid = Column(String(20), nullable=False)
