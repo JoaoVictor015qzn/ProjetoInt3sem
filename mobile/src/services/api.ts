@@ -100,7 +100,15 @@ function authHeaders(token: string) {
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || `Erro ${response.status}`);
+    let errMsg = `Erro ${response.status}`;
+    if (error.detail) {
+      if (Array.isArray(error.detail)) {
+        errMsg = error.detail.map((e: any) => `${e.loc?.[e.loc.length - 1] || "Campo"}: ${e.msg}`).join("\n");
+      } else {
+        errMsg = error.detail;
+      }
+    }
+    throw new Error(errMsg);
   }
   return response.json();
 }
