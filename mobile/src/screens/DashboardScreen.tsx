@@ -9,6 +9,8 @@ import {
   SubestacaoInfo, UserInfo, LogAcessoInfo,
 } from "../services/api";
 import { COLORS } from "../theme";
+import { useNotifications } from "../hooks/useNotifications";
+import { Modal, TouchableOpacity } from "react-native";
 
 export default function DashboardScreen() {
   const { token, user } = useAuth();
@@ -22,6 +24,9 @@ export default function DashboardScreen() {
   const [subMap, setSubMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const { notifications, unreadCount, markAllAsRead } = useNotifications();
 
   const fetchData = useCallback(async () => {
     if (!token) return;
@@ -74,8 +79,26 @@ export default function DashboardScreen() {
       >
         <View style={{ width: contentWidth, alignSelf: "center" }}>
           {/* Header */}
-          <Text style={styles.greeting}>Olá, {user?.nome?.split(" ")[0]} 👋</Text>
-          <Text style={styles.dateText}>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}</Text>
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.greeting}>Olá, {user?.nome?.split(" ")[0]} 👋</Text>
+              <Text style={styles.dateText}>{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.bellBtn} 
+              onPress={() => {
+                setShowNotifications(true);
+                markAllAsRead();
+              }}
+            >
+              <Text style={{ fontSize: 24 }}>🔔</Text>
+              {unreadCount > 0 && (
+                <View style={styles.badgeCount}>
+                  <Text style={styles.badgeCountText}>{unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
 
           {/* Stats */}
           <View style={styles.statsRow}>
@@ -128,6 +151,41 @@ export default function DashboardScreen() {
           <View style={{ height: 32 }} />
         </View>
       </ScrollView>
+
+      {/* Notifications Modal */}
+      <Modal visible={showNotifications} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { width: contentWidth }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Notificações</Text>
+              <TouchableOpacity onPress={() => setShowNotifications(false)}>
+                <Text style={styles.closeBtn}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {notifications.length === 0 ? (
+                <Text style={styles.emptyText}>Sem notificações no momento.</Text>
+              ) : (
+                notifications.map((notif) => (
+                  <View key={notif.id} style={styles.notifCard}>
+                    <Text style={{ fontSize: 18, marginRight: 10 }}>
+                      {notif.resultado === "PERMITIDO" ? "✅" : "⛔"}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.notifText}>
+                        <Text style={{ fontWeight: "700" }}>{notif.colaborador}</Text> tentou acessar a subestação.
+                      </Text>
+                      <Text style={styles.notifTime}>
+                        {new Date(notif.data_hora).toLocaleTimeString("pt-BR")}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -146,8 +204,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   center: { justifyContent: "center", alignItems: "center" },
   scroll: { paddingTop: 60, paddingBottom: 24 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 },
   greeting: { fontSize: 26, fontWeight: "800", color: COLORS.text, marginBottom: 4 },
-  dateText: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24, textTransform: "capitalize" },
+  dateText: { fontSize: 14, color: COLORS.textMuted, textTransform: "capitalize" },
+  bellBtn: { padding: 8, position: "relative" },
+  badgeCount: { 
+    position: "absolute", top: 4, right: 4, backgroundColor: COLORS.danger, 
+    borderRadius: 10, width: 20, height: 20, justifyContent: "center", alignItems: "center" 
+  },
+  badgeCountText: { color: COLORS.bg, fontSize: 10, fontWeight: "bold" },
   statsRow: { flexDirection: "row", gap: 10, marginBottom: 28 },
   statCard: {
     flex: 1, backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
@@ -181,4 +246,12 @@ const styles = StyleSheet.create({
     alignItems: "center", borderWidth: 1, borderColor: COLORS.cardBorder,
   },
   emptyText: { fontSize: 14, color: COLORS.textMuted },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
+  modalContent: { backgroundColor: COLORS.bg, borderRadius: 16, padding: 20, maxHeight: "80%", shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontWeight: "bold", color: COLORS.text },
+  closeBtn: { fontSize: 20, color: COLORS.textMuted, padding: 4 },
+  notifCard: { flexDirection: "row", backgroundColor: COLORS.card, padding: 12, borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: "center" },
+  notifText: { fontSize: 14, color: COLORS.text },
+  notifTime: { fontSize: 11, color: COLORS.textMuted, marginTop: 4 },
 });
