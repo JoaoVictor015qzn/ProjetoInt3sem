@@ -56,7 +56,14 @@ export default function CreateColaboradorScreen({ navigation, route }: Props) {
   // Permissions state
   const [subestacoes, setSubestacoes] = useState<SubestacaoInfo[]>([]);
   const [permissoes, setPermissoes] = useState<PermissaoInfo[]>([]);
-  const [permMap, setPermMap] = useState<Record<string, string>>({}); // subId -> permId
+  const [permMap, setPermMap] = useState<Record<string, PermissaoInfo>>({}); // subId -> PermissaoInfo
+
+  // Modal permissions state
+  const [showPermModal, setShowPermModal] = useState(false);
+  const [selectedSubestacao, setSelectedSubestacao] = useState<SubestacaoInfo | null>(null);
+  const [permType, setPermType] = useState<"permanente" | "temporario">("permanente");
+  const [validadeInicioStr, setValidadeInicioStr] = useState("");
+  const [validadeFimStr, setValidadeFimStr] = useState("");
 
   // Fetch subestações e permissões do usuário
   useEffect(() => {
@@ -72,8 +79,8 @@ export default function CreateColaboradorScreen({ navigation, route }: Props) {
         const userPerms = perms.filter((p) => p.colaborador_id === editUser!.id && p.ativa);
         setPermissoes(userPerms);
 
-        const map: Record<string, string> = {};
-        userPerms.forEach((p) => (map[p.subestacao_id] = p.id));
+        const map: Record<string, PermissaoInfo> = {};
+        userPerms.forEach((p) => (map[p.subestacao_id] = p));
         setPermMap(map);
       } catch {}
     })();
@@ -130,25 +137,113 @@ export default function CreateColaboradorScreen({ navigation, route }: Props) {
     setPhotoUri(null);
   };
 
-  // ── Permissão toggle ──────────────────────────────────────────────
+  // ── Permissão toggle & Modal Helpers ──────────────────────────────
+
+  const formatDateToBR = (dateStr: string | null): string => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const parseBRToISO = (brStr: string): string | null => {
+    const clean = brStr.trim();
+    if (!clean) return null;
+    const match = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?$/);
+    if (!match) return null;
+    const [_, day, month, year, hour = "00", minute = "00"] = match;
+    const d = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString();
+  };
+
+  const applyShortcut = (days: number) => {
+    const start = new Date();
+    const end = new Date();
+    end.setDate(start.getDate() + days);
+
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const format = (d: Date) =>
+      `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    setValidadeInicioStr(format(start));
+    setValidadeFimStr(format(end));
+  };
 
   const togglePermissao = async (subId: string) => {
     if (!token || !editUser) return;
     try {
       if (permMap[subId]) {
-        await deletePermissao(token, permMap[subId]);
+        await deletePermissao(token, permMap[subId].id);
         const newMap = { ...permMap };
         delete newMap[subId];
         setPermMap(newMap);
       } else {
-        const perm = await createPermissao(token, {
-          colaborador_id: editUser.id,
-          subestacao_id: subId,
-        });
-        setPermMap({ ...permMap, [subId]: perm.id });
+        const sub = subestacoes.find((s) => s.id === subId);
+        if (sub) {
+          setSelectedSubestacao(sub);
+          setPermType("permanente");
+          setValidadeInicioStr("");
+          setValidadeFimStr("");
+          setShowPermModal(true);
+        }
       }
     } catch (e: any) {
       showAlert("Erro", e.message);
+    }
+  };
+
+  const savePermissaoModal = async () => {
+    if (!token || !editUser || !selectedSubestacao) return;
+
+    let validade_inicio = null;
+    let validade_fim = null;
+
+    if (permType === "temporario") {
+      const parsedInicio = parseBRToISO(validadeInicioStr);
+      const parsedFim = parseBRToISO(validadeFimStr);
+
+      if (!parsedInicio) {
+        showAlert("Erro de Formato", "A data de início deve estar no formato DD/MM/AAAA HH:MM");
+        return;
+      }
+      if (!parsedFim) {
+        showAlert("Erro de Formato", "A data de expiração deve estar no formato DD/MM/AAAA HH:MM");
+        return;
+      }
+
+      const dInicio = new Date(parsedInicio);
+      const dFim = new Date(parsedFim);
+      if (dFim <= dInicio) {
+        showAlert("Data Inválida", "A data de expiração deve ser após a data de início.");
+        return;
+      }
+
+      validade_inicio = parsedInicio;
+      validade_fim = parsedFim;
+    }
+
+    try {
+      setLoading(true);
+      if (permMap[selectedSubestacao.id]) {
+        await deletePermissao(token, permMap[selectedSubestacao.id].id);
+      }
+
+      const perm = await createPermissao(token, {
+        colaborador_id: editUser.id,
+        subestacao_id: selectedSubestacao.id,
+        validade_inicio,
+        validade_fim,
+      });
+
+      setPermMap({ ...permMap, [selectedSubestacao.id]: perm });
+      setShowPermModal(false);
+      setSelectedSubestacao(null);
+    } catch (e: any) {
+      showAlert("Erro", e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -325,16 +420,46 @@ export default function CreateColaboradorScreen({ navigation, route }: Props) {
             {isEdit && isAdmin && subestacoes.length > 0 && (
               <View style={styles.permCard}>
                 <Text style={styles.permTitle}>🔐 Permissões de Acesso</Text>
-                <Text style={styles.permSubtitle}>Subestações que este colaborador pode acessar</Text>
+                <Text style={styles.permSubtitle}>
+                  Toque na subestação ativa para configurar seu período de validade
+                </Text>
 
                 {subestacoes.map((sub) => (
                   <View key={sub.id} style={styles.permRow}>
-                    <View style={styles.permInfo}>
+                    <TouchableOpacity
+                      style={styles.permInfo}
+                      activeOpacity={permMap[sub.id] ? 0.7 : 1}
+                      onPress={() => {
+                        if (permMap[sub.id]) {
+                          const perm = permMap[sub.id];
+                          setSelectedSubestacao(sub);
+                          if (perm.validade_inicio || perm.validade_fim) {
+                            setPermType("temporario");
+                            setValidadeInicioStr(formatDateToBR(perm.validade_inicio));
+                            setValidadeFimStr(formatDateToBR(perm.validade_fim));
+                          } else {
+                            setPermType("permanente");
+                            setValidadeInicioStr("");
+                            setValidadeFimStr("");
+                          }
+                          setShowPermModal(true);
+                        }
+                      }}
+                    >
                       <Text style={styles.permName}>⚡ {sub.nome}</Text>
                       {sub.localizacao && (
                         <Text style={styles.permLocation}>{sub.localizacao}</Text>
                       )}
-                    </View>
+                      {permMap[sub.id] && (
+                        <Text style={styles.permPeriodText}>
+                          {permMap[sub.id].validade_inicio || permMap[sub.id].validade_fim ? (
+                            `⏱️ De: ${formatDateToBR(permMap[sub.id].validade_inicio) || "Início imediato"}\n⏱️ Até: ${formatDateToBR(permMap[sub.id].validade_fim) || "Sem expiração"}`
+                          ) : (
+                            "🟢 Acesso por tempo indeterminado"
+                          )}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
                     <Switch
                       value={!!permMap[sub.id]}
                       onValueChange={() => togglePermissao(sub.id)}
@@ -345,6 +470,98 @@ export default function CreateColaboradorScreen({ navigation, route }: Props) {
                 ))}
               </View>
             )}
+
+            {/* Modal de Concessão de Acesso */}
+            <Modal visible={showPermModal} animationType="fade" transparent={true}>
+              <View style={styles.modalOverlay}>
+                <View style={[styles.modalCard, { width: contentWidth }]}>
+                  <Text style={styles.modalTitle}>🔐 Configurar Acesso</Text>
+                  <Text style={styles.modalSubtitle}>
+                    Defina as condições de acesso para a subestação:{"\n"}
+                    <Text style={{ fontWeight: "700", color: COLORS.text }}>
+                      ⚡ {selectedSubestacao?.nome}
+                    </Text>
+                  </Text>
+
+                  {/* Selector de Tipo */}
+                  <View style={styles.typeSelectorRow}>
+                    <TouchableOpacity
+                      style={[styles.typeBtn, permType === "permanente" && styles.typeBtnActive]}
+                      onPress={() => setPermType("permanente")}
+                    >
+                      <Text style={[styles.typeBtnText, permType === "permanente" && styles.typeBtnTextActive]}>
+                        Permanente
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.typeBtn, permType === "temporario" && styles.typeBtnActive]}
+                      onPress={() => setPermType("temporario")}
+                    >
+                      <Text style={[styles.typeBtnText, permType === "temporario" && styles.typeBtnTextActive]}>
+                        Temporário
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {permType === "temporario" && (
+                    <View style={styles.dateFields}>
+                      <View style={styles.fieldGroup}>
+                        <Text style={styles.inputLabel}>INÍCIO (DD/MM/AAAA HH:MM)</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={validadeInicioStr}
+                          onChangeText={setValidadeInicioStr}
+                          placeholder="Ex: 01/06/2026 08:00"
+                          placeholderTextColor="#5a6a80"
+                        />
+                      </View>
+                      <View style={styles.fieldGroup}>
+                        <Text style={styles.inputLabel}>EXPIRAÇÃO (DD/MM/AAAA HH:MM)</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={validadeFimStr}
+                          onChangeText={setValidadeFimStr}
+                          placeholder="Ex: 08/06/2026 18:00"
+                          placeholderTextColor="#5a6a80"
+                        />
+                      </View>
+
+                      {/* Shortcuts */}
+                      <Text style={[styles.inputLabel, { marginBottom: 6 }]}>ATALHOS DE EXPIRAÇÃO</Text>
+                      <View style={styles.shortcutsRow}>
+                        <TouchableOpacity style={styles.shortcutBtn} onPress={() => applyShortcut(1)}>
+                          <Text style={styles.shortcutText}>+24 horas</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.shortcutBtn} onPress={() => applyShortcut(7)}>
+                          <Text style={styles.shortcutText}>+7 Dias</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.shortcutBtn} onPress={() => applyShortcut(30)}>
+                          <Text style={styles.shortcutText}>+30 Dias</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={styles.modalBtns}>
+                    <TouchableOpacity
+                      style={styles.modalBtnCancel}
+                      onPress={() => {
+                        setShowPermModal(false);
+                        setSelectedSubestacao(null);
+                      }}
+                    >
+                      <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.modalBtnConfirm}
+                      onPress={savePermissaoModal}
+                    >
+                      <Text style={styles.modalBtnConfirmText}>Salvar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
 
             <View style={{ height: 40 }} />
           </View>
@@ -443,4 +660,45 @@ const styles = StyleSheet.create({
   permInfo: { flex: 1 },
   permName: { fontSize: 15, fontWeight: "600", color: COLORS.text },
   permLocation: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  permPeriodText: { fontSize: 11, color: COLORS.accent, marginTop: 4, fontWeight: "600", lineHeight: 15 },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "center", alignItems: "center",
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: COLORS.card, borderRadius: 20, padding: 24,
+    borderWidth: 1, borderColor: COLORS.cardBorder, shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 12,
+  },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: COLORS.text, marginBottom: 6 },
+  modalSubtitle: { fontSize: 14, color: COLORS.textMuted, marginBottom: 20, lineHeight: 20 },
+  typeSelectorRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
+  typeBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1,
+    borderColor: COLORS.cardBorder, backgroundColor: COLORS.inputBg, alignItems: "center",
+  },
+  typeBtnActive: { borderColor: COLORS.accent, backgroundColor: COLORS.accentGlow },
+  typeBtnText: { fontSize: 13, fontWeight: "700", color: COLORS.textMuted },
+  typeBtnTextActive: { color: COLORS.accent },
+  dateFields: { marginBottom: 20 },
+  shortcutsRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 8 },
+  shortcutBtn: {
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+    backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.cardBorder,
+  },
+  shortcutText: { fontSize: 12, fontWeight: "600", color: COLORS.textMuted },
+  modalBtns: { flexDirection: "row", gap: 10, marginTop: 12 },
+  modalBtnCancel: {
+    flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: COLORS.inputBg,
+    borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: "center",
+  },
+  modalBtnCancelText: { color: COLORS.textMuted, fontSize: 14, fontWeight: "700" },
+  modalBtnConfirm: {
+    flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: COLORS.accent,
+    alignItems: "center", shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 6, elevation: 5,
+  },
+  modalBtnConfirmText: { color: COLORS.bg, fontSize: 14, fontWeight: "800" },
 });
