@@ -48,3 +48,4 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         return {"id": user_id, "email": email, "role": role}
     except JWTError:
         raise credentials_exception
+

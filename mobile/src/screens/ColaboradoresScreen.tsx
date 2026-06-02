@@ -78,33 +78,45 @@ export default function ColaboradoresScreen({ navigation }: Props) {
     );
   };
 
-  const renderItem = ({ item }: { item: UserInfo }) => (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={canEdit ? 0.7 : 1}
-      onPress={() => canEdit && navigation.navigate("CreateColaborador", { user: item })}
-      onLongPress={() => canEdit && handleDelete(item)}
-    >
-      {item.foto_url ? (
-        <Image source={{ uri: `${BASE_URL}${item.foto_url}` }} style={styles.avatarImg} />
-      ) : (
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.nome.charAt(0).toUpperCase()}</Text>
-        </View>
-      )}
-      <View style={styles.cardInfo}>
-        <Text style={styles.cardName}>{item.nome}</Text>
-        <Text style={styles.cardEmail}>{item.email}</Text>
-        <Text style={styles.cardCargo}>{item.cargo}</Text>
-      </View>
-      <View style={styles.cardRight}>
-        {roleBadge(item.role)}
-        {item.rfid_uid && (
-          <Text style={styles.rfidText}>🏷 {item.rfid_uid}</Text>
+  const getGestorName = (gestorId: string | null) => {
+    if (!gestorId) return null;
+    const gestor = users.find(u => u.id === gestorId);
+    return gestor ? gestor.nome : "Desconhecido";
+  };
+
+  const renderItem = ({ item }: { item: UserInfo }) => {
+    const gestorName = getGestorName(item.gestor_id);
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={canEdit ? 0.7 : 1}
+        onPress={() => canEdit && navigation.navigate("CreateColaborador", { user: item })}
+        onLongPress={() => canEdit && handleDelete(item)}
+      >
+        {item.foto_url ? (
+          <Image source={{ uri: `${BASE_URL}${item.foto_url}` }} style={styles.avatarImg} />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{item.nome.charAt(0).toUpperCase()}</Text>
+          </View>
         )}
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.cardInfo}>
+          <Text style={styles.cardName}>{item.nome}</Text>
+          <Text style={styles.cardEmail}>{item.email}</Text>
+          <Text style={styles.cardCargo}>{item.cargo}</Text>
+          {gestorName && (
+            <Text style={styles.gestorText}>Sup/Gestor: {gestorName}</Text>
+          )}
+        </View>
+        <View style={styles.cardRight}>
+          {roleBadge(item.role)}
+          {item.rfid_uid && (
+            <Text style={styles.rfidText}>🏷 {item.rfid_uid}</Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -171,6 +183,7 @@ const styles = StyleSheet.create({
   badge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   badgeText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
   rfidText: { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
+  gestorText: { fontSize: 11, color: COLORS.accent, marginTop: 4, fontWeight: "600" },
   fab: {
     position: "absolute", bottom: 24, right: 24, width: 56, height: 56,
     borderRadius: 16, backgroundColor: COLORS.accent, justifyContent: "center",

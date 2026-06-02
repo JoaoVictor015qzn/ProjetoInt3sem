@@ -1,4 +1,18 @@
 services:
+  # ── Gateway Nginx (Microfrontend) ────────────────────────────────────
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - web
+      - mobile
+    networks:
+      - app-network
+
   # ── PostgreSQL ───────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
@@ -21,10 +35,13 @@ services:
     image: dpage/pgadmin4:latest
     restart: unless-stopped
     env_file: .env
+    environment:
+      - PGADMIN_SERVER_JSON_FILE=/pgadmin4/servers.json
     ports:
       - "5050:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+      - ./servers.json:/pgadmin4/servers.json
     depends_on:
       db:
         condition: service_healthy
@@ -48,16 +65,23 @@ services:
     networks:
       - app-network
 
-  # ── Mobile Web ─────────────────────────────────────────────────────
+  # ── Mobile Web (Expo) ────────────────────────────────────────────────
   mobile:
     build:
       context: ./mobile
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "3000:80"
     depends_on:
       - api
+    networks:
+      - app-network
+
+  # ── Home Page (Vite) ─────────────────────────────────────────────────
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    restart: unless-stopped
     networks:
       - app-network
 

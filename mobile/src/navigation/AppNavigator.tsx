@@ -7,6 +7,8 @@ import { Text, View } from "react-native";
 import DashboardScreen from "../screens/DashboardScreen";
 import ColaboradoresScreen from "../screens/ColaboradoresScreen";
 import CreateColaboradorScreen from "../screens/CreateColaboradorScreen";
+import SubestacoesScreen from "../screens/SubestacoesScreen";
+import CreateSubestacaoScreen from "../screens/CreateSubestacaoScreen";
 import HistoricoScreen from "../screens/HistoricoScreen";
 import PerfilScreen from "../screens/PerfilScreen";
 import { COLORS } from "../theme";
@@ -25,6 +27,15 @@ function ColaboradoresStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ColaboradoresList" component={ColaboradoresScreen} />
       <Stack.Screen name="CreateColaborador" component={CreateColaboradorScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function SubestacoesStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="SubestacoesList" component={SubestacoesScreen} />
+      <Stack.Screen name="CreateSubestacao" component={CreateSubestacaoScreen} />
     </Stack.Navigator>
   );
 }
@@ -53,6 +64,14 @@ function MainTabs() {
         options={{
           tabBarLabel: "Início",
           tabBarIcon: ({ focused }) => <TabIcon icon="🏠" focused={focused} />,
+        }}
+      />
+      <Tab.Screen
+        name="Subestacoes"
+        component={SubestacoesStack}
+        options={{
+          tabBarLabel: "Subestações",
+          tabBarIcon: ({ focused }) => <TabIcon icon="⚡" focused={focused} />,
         }}
       />
       <Tab.Screen
