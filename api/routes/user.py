@@ -10,6 +10,7 @@ from schemas.users import UserCreate, UserUpdate, UserResponse
 from core.security import hash_password, get_current_user
 from core.permissions import require_role
 from core.database import get_db
+from core.validators import is_valid_cpf
 from models.models import Colaborador
 
 router = APIRouter()
@@ -26,6 +27,12 @@ def create_user(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_role("admin", "gestor")),
 ):
+    if not is_valid_cpf(user.cpf):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CPF inválido matematicamente",
+        )
+
     if db.query(Colaborador).filter(Colaborador.email == user.email).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -49,6 +56,7 @@ def create_user(
         cargo=user.cargo,
         rfid_uid=user.rfid_uid,
         role=user.role.value,
+        gestor_id=user.gestor_id,
         hashed_password=hash_password(user.senha),
     )
 
@@ -65,7 +73,35 @@ def list_users(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_role("admin", "gestor", "supervisor", "operador")),
 ):
-    return db.query(Colaborador).filter(Colaborador.ativo == True).all()
+    query = db.query(Colaborador).filter(Colaborador.ativo == True)
+    
+    # Filtro de Visibilidade Hierárquica
+    if current_user["role"] == "admin":
+        pass  # Vê todos
+    elif current_user["role"] == "gestor":
+        # Vê a si mesmo, seus supervisores e os operadores dos seus supervisores
+        my_id = current_user["id"]
+        supervisores = db.query(Colaborador.id).filter(Colaborador.gestor_id == my_id).all()
+        sup_ids = [s.id for s in supervisores]
+        query = query.filter(
+            (Colaborador.id == my_id) | 
+            (Colaborador.gestor_id == my_id) | 
+            (Colaborador.gestor_id.in_(sup_ids))
+        )
+    elif current_user["role"] == "supervisor":
+        # Vê a si mesmo e seus operadores
+        my_id = current_user["id"]
+        query = query.filter((Colaborador.id == my_id) | (Colaborador.gestor_id == my_id))
+    elif current_user["role"] == "operador":
+        # Vê a si mesmo e seu gestor
+        my_id = current_user["id"]
+        me = db.query(Colaborador).filter(Colaborador.id == my_id).first()
+        if me and me.gestor_id:
+            query = query.filter((Colaborador.id == my_id) | (Colaborador.id == me.gestor_id))
+        else:
+            query = query.filter(Colaborador.id == my_id)
+
+    return query.all()
 
 
 # ── READ (single) ───────────────────────────────────────────────────
@@ -114,6 +150,11 @@ def update_user(
     # Converter enum para string
     if "role" in update_data and update_data["role"] is not None:
         update_data["role"] = update_data["role"].value
+        
+    # Validar CPF
+    if "cpf" in update_data and update_data["cpf"] is not None:
+        if not is_valid_cpf(update_data["cpf"]):
+            raise HTTPException(status_code=400, detail="CPF inválido matematicamente")
 
     # Verificar duplicatas
     if "email" in update_data and update_data["email"] != user.email:

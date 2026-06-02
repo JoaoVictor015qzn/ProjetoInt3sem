@@ -22,6 +22,7 @@ class UserBase(BaseModel):
     cargo: str = Field(..., min_length=2, max_length=80)
     rfid_uid: Optional[str] = Field(None, max_length=20)
     role: UserRole = Field(default=UserRole.operador)
+    gestor_id: Optional[UUID] = None
 
 
 # ── Create ────────────────────────────────────────────────────────────
@@ -39,6 +40,7 @@ class UserUpdate(BaseModel):
     cargo: Optional[str] = Field(None, min_length=2, max_length=80)
     rfid_uid: Optional[str] = Field(None, max_length=20)
     role: Optional[UserRole] = None
+    gestor_id: Optional[UUID] = None
     senha: Optional[str] = Field(None, min_length=6)
 
 
@@ -54,6 +56,7 @@ class UserResponse(BaseModel):
     role: UserRole
     foto_url: Optional[str] = None
     ativo: bool
+    gestor_id: Optional[UUID] = None
     criado_em: datetime
 
     model_config = {"from_attributes": True}

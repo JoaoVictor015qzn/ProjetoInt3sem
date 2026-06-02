@@ -37,6 +37,7 @@ export interface UserInfo {
   role: string;
   foto_url: string | null;
   ativo: boolean;
+  gestor_id: string | null;
   criado_em: string;
 }
 
@@ -194,6 +195,30 @@ export async function createSubestacao(
   return handleResponse<SubestacaoInfo>(res);
 }
 
+export async function updateSubestacao(
+  token: string,
+  subId: string,
+  data: { nome?: string; localizacao?: string }
+): Promise<SubestacaoInfo> {
+  const res = await fetch(`${BASE_URL}/subestacoes/${subId}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  return handleResponse<SubestacaoInfo>(res);
+}
+
+export async function deleteSubestacao(token: string, subId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/subestacoes/${subId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || "Erro ao desativar subestação");
+  }
+}
+
 // ── Permissões ──────────────────────────────────────────────────────
 
 export async function getPermissoes(token: string): Promise<PermissaoInfo[]> {
@@ -203,7 +228,12 @@ export async function getPermissoes(token: string): Promise<PermissaoInfo[]> {
 
 export async function createPermissao(
   token: string,
-  data: { colaborador_id: string; subestacao_id: string }
+  data: {
+    colaborador_id: string;
+    subestacao_id: string;
+    validade_inicio?: string | null;
+    validade_fim?: string | null;
+  }
 ): Promise<PermissaoInfo> {
   const res = await fetch(`${BASE_URL}/permissoes/`, {
     method: "POST",

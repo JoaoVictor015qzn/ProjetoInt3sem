@@ -34,11 +34,13 @@ class Colaborador(Base):
     hashed_password = Column(String(255), nullable=False)
     foto_url = Column(String(500), nullable=True)
     ativo = Column(Boolean, default=True, nullable=False)
+    gestor_id = Column(UUID(as_uuid=True), ForeignKey("colaborador.id"), nullable=True)
     criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relacionamentos
     permissoes = relationship("Permissao", back_populates="colaborador")
     logs = relationship("LogAcesso", back_populates="colaborador")
+    gestor = relationship("Colaborador", remote_side=[id], backref="subordinados")
 
 
 # ── Subestação ───────────────────────────────────────────────────────
