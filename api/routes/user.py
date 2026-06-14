@@ -11,6 +11,7 @@ from core.security import hash_password, get_current_user
 from core.permissions import require_role
 from core.database import get_db
 from core.validators import is_valid_cpf
+from core.audit import registrar_auditoria
 from models.models import Colaborador
 
 router = APIRouter()
@@ -63,6 +64,12 @@ def create_user(
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    registrar_auditoria(
+        db, current_user["id"], "CRIAR_COLABORADOR", "colaborador",
+        new_user.id, f"Criou o colaborador {new_user.nome} ({new_user.role})"
+    )
+
     return new_user
 
 
@@ -174,6 +181,12 @@ def update_user(
 
     db.commit()
     db.refresh(user)
+
+    registrar_auditoria(
+        db, current_user["id"], "EDITAR_COLABORADOR", "colaborador",
+        user.id, f"Editou o colaborador {user.nome}"
+    )
+
     return user
 
 
@@ -224,6 +237,12 @@ async def upload_foto(
     user.foto_url = f"/uploads/{filename}"
     db.commit()
     db.refresh(user)
+
+    registrar_auditoria(
+        db, current_user["id"], "UPLOAD_FOTO", "colaborador",
+        user.id, f"Enviou foto para o colaborador {user.nome}"
+    )
+
     return user
 
 
@@ -275,4 +294,10 @@ def delete_user(
 
     user.ativo = False
     db.commit()
+
+    registrar_auditoria(
+        db, current_user["id"], "DESATIVAR_COLABORADOR", "colaborador",
+        user.id, f"Desativou o colaborador {user.nome}"
+    )
+
     return {"msg": "Usuário desativado com sucesso"}

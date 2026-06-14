@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from core.database import engine, Base, get_db
 from core.security import hash_password
-from models.models import Colaborador, Subestacao, Permissao, LogAcesso
-from routes import user, auth, subestacao, permissao, log_acesso
+from models.models import Colaborador, Subestacao, Permissao, LogAcesso, AuditLog
+from routes import user, auth, subestacao, permissao, log_acesso, audit_log
 
 # ── Cria todas as tabelas no banco ───────────────────────────────────
 Base.metadata.create_all(bind=engine)
@@ -39,6 +39,7 @@ app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(subestacao.router, prefix="/subestacoes", tags=["Subestações"])
 app.include_router(permissao.router, prefix="/permissoes", tags=["Permissões"])
 app.include_router(log_acesso.router, tags=["Acesso / Logs"])
+app.include_router(audit_log.router, prefix="/auditoria", tags=["Auditoria"])
 
 
 # ── Seed Avançado ────────────────────────────────────────────────────

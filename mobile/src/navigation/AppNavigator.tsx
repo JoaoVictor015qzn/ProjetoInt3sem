@@ -10,7 +10,10 @@ import CreateColaboradorScreen from "../screens/CreateColaboradorScreen";
 import SubestacoesScreen from "../screens/SubestacoesScreen";
 import CreateSubestacaoScreen from "../screens/CreateSubestacaoScreen";
 import HistoricoScreen from "../screens/HistoricoScreen";
+import AuditoriaScreen from "../screens/AuditoriaScreen";
+import SimuladorCatracaScreen from "../screens/SimuladorCatracaScreen";
 import PerfilScreen from "../screens/PerfilScreen";
+import { useAuth } from "../contexts/AuthContext";
 import { COLORS } from "../theme";
 
 const Tab = createBottomTabNavigator();
@@ -41,6 +44,9 @@ function SubestacoesStack() {
 }
 
 function MainTabs() {
+  const { user } = useAuth();
+  const isAdminOrGestor = user?.role === "admin" || user?.role === "gestor";
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -67,6 +73,14 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
+        name="Catraca"
+        component={SimuladorCatracaScreen}
+        options={{
+          tabBarLabel: "Catraca",
+          tabBarIcon: ({ focused }) => <TabIcon icon="📶" focused={focused} />,
+        }}
+      />
+      <Tab.Screen
         name="Subestacoes"
         component={SubestacoesStack}
         options={{
@@ -90,6 +104,16 @@ function MainTabs() {
           tabBarIcon: ({ focused }) => <TabIcon icon="📋" focused={focused} />,
         }}
       />
+      {isAdminOrGestor && (
+        <Tab.Screen
+          name="Auditoria"
+          component={AuditoriaScreen}
+          options={{
+            tabBarLabel: "Auditoria",
+            tabBarIcon: ({ focused }) => <TabIcon icon="🛡️" focused={focused} />,
+          }}
+        />
+      )}
       <Tab.Screen
         name="Perfil"
         component={PerfilScreen}

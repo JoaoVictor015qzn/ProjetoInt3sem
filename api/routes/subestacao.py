@@ -8,6 +8,7 @@ from schemas.subestacao import SubestacaoCreate, SubestacaoUpdate, SubestacaoRes
 from core.security import get_current_user
 from core.permissions import require_role
 from core.database import get_db
+from core.audit import registrar_auditoria
 from models.models import Subestacao
 
 router = APIRouter()
@@ -28,6 +29,12 @@ def create_subestacao(
     db.add(sub)
     db.commit()
     db.refresh(sub)
+
+    registrar_auditoria(
+        db, current_user["id"], "CRIAR_SUBESTACAO", "subestacao",
+        sub.id, f"Criou a subestação {sub.nome}"
+    )
+
     return sub
 
 
@@ -84,6 +91,12 @@ def update_subestacao(
 
     db.commit()
     db.refresh(sub)
+
+    registrar_auditoria(
+        db, current_user["id"], "EDITAR_SUBESTACAO", "subestacao",
+        sub.id, f"Editou a subestação {sub.nome}"
+    )
+
     return sub
 
 
@@ -106,4 +119,10 @@ def delete_subestacao(
 
     sub.ativa = False
     db.commit()
+
+    registrar_auditoria(
+        db, current_user["id"], "DESATIVAR_SUBESTACAO", "subestacao",
+        sub.id, f"Desativou a subestação {sub.nome}"
+    )
+
     return {"msg": "Subestação desativada com sucesso"}
