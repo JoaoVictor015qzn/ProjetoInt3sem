@@ -321,3 +321,32 @@ export async function deleteFoto(
   });
   return handleResponse<UserInfo>(res);
 }
+
+// ── Auditoria ───────────────────────────────────────────────────────
+
+export interface AuditLogInfo {
+  id: string;
+  usuario_id: string;
+  usuario_nome: string | null;
+  acao: string;
+  entidade: string;
+  entidade_id: string | null;
+  detalhes: string | null;
+  data_hora: string;
+}
+
+export async function getAuditLogs(
+  token: string,
+  params?: { entidade?: string; acao?: string; limit?: number }
+): Promise<AuditLogInfo[]> {
+  const query = new URLSearchParams();
+  if (params?.entidade) query.set("entidade", params.entidade);
+  if (params?.acao) query.set("acao", params.acao);
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  const res = await fetch(`${BASE_URL}/auditoria${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(token),
+  });
+  return handleResponse<AuditLogInfo[]>(res);
+}
+

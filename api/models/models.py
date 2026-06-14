@@ -114,3 +114,24 @@ class LogAcesso(Base):
     # Relacionamentos
     colaborador = relationship("Colaborador", back_populates="logs")
     subestacao = relationship("Subestacao", back_populates="logs")
+
+
+# ── Log de Auditoria ─────────────────────────────────────────────────
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    usuario_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("colaborador.id"),
+        nullable=False,
+    )
+    acao = Column(String(80), nullable=False)
+    entidade = Column(String(80), nullable=False)
+    entidade_id = Column(UUID(as_uuid=True), nullable=True)
+    detalhes = Column(String(500), nullable=True)
+    data_hora = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relacionamentos
+    usuario = relationship("Colaborador")

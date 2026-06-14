@@ -7,6 +7,7 @@ from typing import List
 from schemas.permissao import PermissaoCreate, PermissaoResponse
 from core.permissions import require_role
 from core.database import get_db
+from core.audit import registrar_auditoria
 from models.models import Permissao, Colaborador, Subestacao
 
 router = APIRouter()
@@ -49,6 +50,12 @@ def create_permissao(
     db.add(perm)
     db.commit()
     db.refresh(perm)
+
+    registrar_auditoria(
+        db, current_user["id"], "CONCEDER_PERMISSAO", "permissao",
+        perm.id, f"Concedeu permissão de {colab.nome} para {sub.nome}"
+    )
+
     return perm
 
 
@@ -81,4 +88,12 @@ def revoke_permissao(
 
     perm.ativa = False
     db.commit()
+
+    colab = db.query(Colaborador).filter(Colaborador.id == perm.colaborador_id).first()
+    sub = db.query(Subestacao).filter(Subestacao.id == perm.subestacao_id).first()
+    registrar_auditoria(
+        db, current_user["id"], "REVOGAR_PERMISSAO", "permissao",
+        perm.id, f"Revogou permissão de {colab.nome if colab else 'N/A'} para {sub.nome if sub else 'N/A'}"
+    )
+
     return {"msg": "Permissão revogada com sucesso"}
